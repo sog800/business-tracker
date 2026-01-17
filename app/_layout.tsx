@@ -1,24 +1,46 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import LockScreen from "../components/LockScreen";
+import { createTables } from "../database/schema";
+import { getBusiness, getReminderTime } from "../services/businessService";
+import { initializeNotifications } from "../services/notificationService";
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+   const [initialized, setInitialized] = useState(false);
+   const [unlocked, setUnlocked] = useState(false);
 
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  );
+   useEffect(() => {
+      createTables();
+      console.log("Database initialized");
+      
+      // Initialize notifications
+      const business = getBusiness();
+      if (business) {
+        const reminderTime = getReminderTime(business.id);
+        initializeNotifications(reminderTime).catch(console.error);
+      }
+      
+      setInitialized(true);
+   }, []);
+
+   // If there's a business with a password and user hasn't unlocked, show lock
+   const business = getBusiness();
+   const requiresLock = !!business && !!business.password;
+
+   if (!initialized) return null;
+
+   if (requiresLock && !unlocked) {
+      return <LockScreen onUnlock={() => setUnlocked(true)} />;
+   }
+
+   return (
+     <Stack screenOptions={{ headerShown: false }}>
+       <Stack.Screen name="index" />
+       <Stack.Screen name="business-setup" />
+       <Stack.Screen name="dashboard" />
+       <Stack.Screen name="products" />
+       <Stack.Screen name="settings" />
+     </Stack>
+   );
 }
+
